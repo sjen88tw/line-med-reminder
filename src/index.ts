@@ -3,6 +3,7 @@ import { messagingApi } from '@line/bot-sdk';
 import { loadConfig } from './config.js';
 import { runMigrations } from './db.js';
 import { makeMemberService } from './member/member-service.js';
+import { makeConfirmService } from './dosing/confirm-service.js';
 import { createApp } from './server.js';
 
 async function main(): Promise<void> {
@@ -12,6 +13,7 @@ async function main(): Promise<void> {
   await runMigrations(pool);
 
   const members = makeMemberService(pool);
+  const confirms = makeConfirmService(pool);
 
   const lineApi = new messagingApi.MessagingApiClient({
     channelAccessToken: cfg.channelAccessToken,
@@ -25,8 +27,17 @@ async function main(): Promise<void> {
       return null;
     }
   };
+  const reply = async (replyToken: string, text: string): Promise<void> => {
+    await lineApi.replyMessage({ replyToken, messages: [{ type: 'text', text }] });
+  };
 
-  const app = createApp({ channelSecret: cfg.channelSecret, members, getDisplayName });
+  const app = createApp({
+    channelSecret: cfg.channelSecret,
+    members,
+    confirms,
+    getDisplayName,
+    reply,
+  });
   app.listen(cfg.port, () => {
     console.log(`line-med-reminder listening on :${cfg.port}`);
   });
