@@ -4,6 +4,7 @@ import {
   type Med,
   type MealTimes,
 } from '../dosing/decomposer.js';
+import { type JobQueue, scheduleForDose } from '../scheduler/scheduler.js';
 
 // A2: silent default meal times. No prompt to the patient (pilot decision).
 export const DEFAULT_MEAL_TIMES: MealTimes = {
@@ -19,6 +20,9 @@ export interface CreatePrescriptionInput {
   days: number;
   meds: Med[];
   mealTimes?: MealTimes;
+  // When provided, each materialized dose gets a persisted reminder +
+  // escalation job (#03). Omit in tests that only assert DB materialization.
+  queue?: JobQueue;
 }
 
 export interface CreatePrescriptionResult {
@@ -67,6 +71,12 @@ export function makePrescriptionService(db: Queryable) {
             JSON.stringify(d.meds),
           ],
         );
+        if (input.queue) {
+          await scheduleForDose(input.queue, {
+            doseEventId: d.doseEventId,
+            scheduledAt: d.scheduledAt,
+          });
+        }
       }
 
       return { prescriptionId, doseCount: doses.length };

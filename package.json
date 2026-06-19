@@ -6,6 +6,7 @@
   "description": "先勁藥局 LINE 服藥提醒 + 續領留客 pilot",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "worker": "tsx src/worker.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -16,7 +17,8 @@
   "dependencies": {
     "@line/bot-sdk": "^9.5.0",
     "express": "^4.21.2",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "pg-boss": "^10.1.5"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
