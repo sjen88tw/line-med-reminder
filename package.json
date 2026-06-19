@@ -1,0 +1,32 @@
+{
+  "name": "line-med-reminder",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "先勁藥局 LINE 服藥提醒 + 續領留客 pilot",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "migrate": "tsx src/migrate.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@line/bot-sdk": "^9.5.0",
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "@types/supertest": "^6.0.2",
+    "pg-mem": "^3.0.5",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
