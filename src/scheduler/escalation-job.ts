@@ -17,6 +17,7 @@ export async function handleEscalation(
 ): Promise<void> {
   const dose = await loadDose(deps.db, doseEventId);
   if (!dose) return;
+  if (dose.prescription_status === 'ended') return; // course stopped -> no escalation
 
   // Already confirmed, already escalated, or missed -> nothing to do.
   if (dose.status === 'CONFIRMED' || dose.status === 'ESCALATED' || dose.status === 'MISSED') {

@@ -1,5 +1,11 @@
 import PgBoss from 'pg-boss';
-import { type JobQueue, JOB_REMINDER, JOB_ESCALATION } from './scheduler.js';
+import {
+  type JobQueue,
+  JOB_REMINDER,
+  JOB_ESCALATION,
+  JOB_REFILL,
+  JOB_END_COURSE,
+} from './scheduler.js';
 
 export interface PgBossHandle {
   queue: JobQueue;
@@ -19,6 +25,8 @@ export async function startPgBoss(connectionString: string): Promise<PgBossHandl
   await boss.start();
   await boss.createQueue(JOB_REMINDER);
   await boss.createQueue(JOB_ESCALATION);
+  await boss.createQueue(JOB_REFILL);
+  await boss.createQueue(JOB_END_COURSE);
 
   const queue: JobQueue = {
     async schedule(name: string, payload: unknown, runAt: Date): Promise<void> {

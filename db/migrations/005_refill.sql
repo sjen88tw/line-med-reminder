@@ -1,0 +1,2 @@
+ALTER TABLE prescription ADD COLUMN IF NOT EXISTS refill_reminded_at TIMESTAMPTZ;
+ALTER TABLE prescription ADD COLUMN IF NOT EXISTS refilled_at TIMESTAMPTZ;

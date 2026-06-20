@@ -2,10 +2,22 @@ import { Pool } from 'pg';
 import { messagingApi } from '@line/bot-sdk';
 import { loadConfig } from './config.js';
 import { startPgBoss } from './scheduler/pgboss-queue.js';
-import { JOB_REMINDER, JOB_ESCALATION, type DoseJobPayload } from './scheduler/scheduler.js';
+import {
+  JOB_REMINDER,
+  JOB_ESCALATION,
+  JOB_REFILL,
+  JOB_END_COURSE,
+  type DoseJobPayload,
+} from './scheduler/scheduler.js';
 import { handleReminder } from './scheduler/reminder-job.js';
 import { handleEscalation } from './scheduler/escalation-job.js';
+import { handleRefillReminder } from './scheduler/refill-job.js';
+import { makeLifecycleService } from './prescription/lifecycle.js';
 import type { Pusher } from './line/push.js';
+
+interface RxJobPayload {
+  prescriptionId: number | string;
+}
 
 // Background worker: drains the reminder + escalation queues. Run as a separate
 // process from the web server (`bun run worker`). Requires live Postgres + LINE.
@@ -50,7 +62,24 @@ async function main(): Promise<void> {
     }
   });
 
-  console.log('worker started: draining', JOB_REMINDER, '+', JOB_ESCALATION);
+  await boss.work(JOB_REFILL, async (jobs) => {
+    for (const job of jobs) {
+      await handleRefillReminder((job.data as RxJobPayload).prescriptionId, {
+        db: pool,
+        pusher,
+        notifyPharmacy,
+      });
+    }
+  });
+
+  const lifecycle = makeLifecycleService(pool);
+  await boss.work(JOB_END_COURSE, async (jobs) => {
+    for (const job of jobs) {
+      await lifecycle.endCourse((job.data as RxJobPayload).prescriptionId);
+    }
+  });
+
+  console.log('worker started: draining dose + prescription queues');
 }
 
 main().catch((err) => {

@@ -67,6 +67,14 @@ export function buildReminderFlex(v: ReminderView): messagingApi.FlexMessage {
   };
 }
 
+// #05 refill nudge. No confirm button — the pharmacy calls/serves the patient.
+export function buildRefillMessage(drugSummary: string): messagingApi.TextMessage {
+  return {
+    type: 'text',
+    text: `提醒您：您的藥（${drugSummary}）快用完了，記得回藥局續領 🙏`,
+  };
+}
+
 // Escalation card: visually distinct (red header), stronger copy, same button.
 export function buildEscalationFlex(v: ReminderView): messagingApi.FlexMessage {
   const line = medsLine(v.meds);

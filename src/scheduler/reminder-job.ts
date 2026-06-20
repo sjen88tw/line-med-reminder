@@ -15,6 +15,9 @@ export async function handleReminder(
 ): Promise<void> {
   const dose = await loadDose(deps.db, doseEventId);
   if (!dose) return;
+  // Course ended (early stop or end-of-course): never push. This is how we
+  // "cancel" future reminders without touching the queue.
+  if (dose.prescription_status === 'ended') return;
   // Only a still-SCHEDULED dose gets reminded. Confirmed/reminded/missed -> no-op.
   if (dose.status !== 'SCHEDULED') return;
 

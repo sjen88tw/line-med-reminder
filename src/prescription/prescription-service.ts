@@ -4,7 +4,11 @@ import {
   type Med,
   type MealTimes,
 } from '../dosing/decomposer.js';
-import { type JobQueue, scheduleForDose } from '../scheduler/scheduler.js';
+import {
+  type JobQueue,
+  scheduleForDose,
+  scheduleLifecycle,
+} from '../scheduler/scheduler.js';
 
 // A2: silent default meal times. No prompt to the patient (pilot decision).
 export const DEFAULT_MEAL_TIMES: MealTimes = {
@@ -77,6 +81,15 @@ export function makePrescriptionService(db: Queryable) {
             scheduledAt: d.scheduledAt,
           });
         }
+      }
+
+      if (input.queue) {
+        // #05: refill nudge + end-of-course jobs for this prescription.
+        await scheduleLifecycle(input.queue, {
+          prescriptionId,
+          startDate: input.startDate,
+          days: input.days,
+        });
       }
 
       return { prescriptionId, doseCount: doses.length };

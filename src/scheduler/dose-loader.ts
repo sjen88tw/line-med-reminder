@@ -7,6 +7,7 @@ export interface DoseRow {
   status: string;
   meds: unknown;
   line_user_id: string;
+  prescription_status: string;
 }
 
 export function parseMeds(meds: unknown): { name: string; qty: number }[] {
@@ -19,9 +20,11 @@ export async function loadDose(
   doseEventId: string,
 ): Promise<DoseRow | null> {
   const { rows } = await db.query(
-    `SELECT d.id, d.member_id, d.slot, d.status, d.meds, m.line_user_id
+    `SELECT d.id, d.member_id, d.slot, d.status, d.meds, m.line_user_id,
+            p.status AS prescription_status
      FROM dose_event d
      JOIN member m ON m.id = d.member_id
+     JOIN prescription p ON p.id = d.prescription_id
      WHERE d.id = $1`,
     [doseEventId],
   );
