@@ -7,11 +7,13 @@ import {
   JOB_ESCALATION,
   JOB_REFILL,
   JOB_END_COURSE,
+  JOB_SWEEP,
   type DoseJobPayload,
 } from './scheduler/scheduler.js';
 import { handleReminder } from './scheduler/reminder-job.js';
 import { handleEscalation } from './scheduler/escalation-job.js';
 import { handleRefillReminder } from './scheduler/refill-job.js';
+import { markMissedDoses } from './scheduler/missed-sweep.js';
 import { makeLifecycleService } from './prescription/lifecycle.js';
 import type { Pusher } from './line/push.js';
 
@@ -78,6 +80,13 @@ async function main(): Promise<void> {
       await lifecycle.endCourse((job.data as RxJobPayload).prescriptionId);
     }
   });
+
+  // #08: nightly sweep marks unconfirmed past doses MISSED (real adherence).
+  await boss.work(JOB_SWEEP, async () => {
+    const n = await markMissedDoses(pool, new Date());
+    if (n > 0) console.log(`[sweep] marked ${n} dose(s) MISSED`);
+  });
+  await boss.schedule(JOB_SWEEP, '0 3 * * *'); // 03:00 daily
 
   console.log('worker started: draining dose + prescription queues');
 }

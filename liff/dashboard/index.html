@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>病人留存儀表板</title>
+<style>
+  :root{--ink:#1c2522;--muted:#6b7670;--line:#e6eae8;--brand:#0f9d6e;--danger:#c0392b;--warn:#9a6a0b}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"Microsoft JhengHei",sans-serif;background:#f4f6f5;color:var(--ink);padding:18px 14px 48px}
+  .wrap{max-width:720px;margin:0 auto}
+  h1{font-size:19px}.sub{font-size:13px;color:#9aa39e;margin-bottom:14px}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:14px 0 22px}
+  .metric{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}
+  .metric .l{font-size:13px;color:var(--muted);margin-bottom:6px}
+  .metric .v{font-size:24px;font-weight:600}
+  .row{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:9px}
+  .av{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;flex-shrink:0}
+  .av.h{background:#fceae8;color:var(--danger)}.av.m{background:#faf0d8;color:var(--warn)}
+  .who{flex:1;min-width:0}.nm{font-size:15px;font-weight:600}.dr{font-size:13px;color:var(--muted)}
+  .days{min-width:54px;text-align:center;font-size:17px;font-weight:600}
+  .days.h{color:var(--danger)}.days.m{color:var(--warn)}
+  button{flex-shrink:0;font-size:13px;font-weight:600;color:#fff;background:var(--brand);border:none;border-radius:9px;padding:8px 12px;cursor:pointer}
+  button:disabled{background:#cdd4d0}
+  .empty{background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;text-align:center;color:var(--muted)}
+  @media(max-width:520px){.dr{font-size:12px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>先勁藥局</h1>
+  <div class="sub">病人留存儀表板</div>
+  <div class="metrics" id="metrics"></div>
+  <h2 style="font-size:16px;margin-bottom:8px">風險名單 · 快斷藥沒回來</h2>
+  <div id="list"></div>
+</div>
+<script>
+  const pct = (x) => Math.round((x || 0) * 100) + '%';
+  async function load() {
+    const [mRes, rRes] = await Promise.all([
+      fetch('/api/dashboard/metrics').then(r => r.json()),
+      fetch('/api/dashboard/at-risk').then(r => r.json()),
+    ]);
+    document.getElementById('metrics').innerHTML = [
+      ['本月續領率', pct(mRes.refillRate)],
+      ['服藥依從率', pct(mRes.adherenceRate)],
+      ['風險名單', mRes.atRiskCount + ' 人'],
+      ['已挽回', mRes.recovered + ' 人'],
+    ].map(([l, v]) => `<div class="metric"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+
+    const rows = rRes.atRisk || [];
+    const list = document.getElementById('list');
+    if (!rows.length) { list.innerHTML = '<div class="empty">本月沒有風險病人，做得好 👍</div>'; return; }
+    list.innerHTML = rows.map(r => {
+      const k = r.risk === 'high' ? 'h' : 'm';
+      return `<div class="row">
+        <div class="av ${k}">${(r.memberName || '病').slice(0,1)}</div>
+        <div class="who"><div class="nm">${r.memberName || '病人 #' + r.memberId}</div>
+          <div class="dr">${r.drugSummary} · 依從率 ${pct(r.adherenceRate)}</div></div>
+        <div class="days ${k}">剩 ${r.daysLeft} 天</div>
+        <button onclick="remind(${JSON.stringify(r.prescriptionId)}, this)">LINE 提醒</button>
+      </div>`;
+    }).join('');
+  }
+  async function remind(id, btn) {
+    btn.disabled = true; btn.textContent = '提醒中...';
+    const res = await fetch('/api/dashboard/remind/' + id, { method: 'POST' });
+    btn.textContent = res.ok ? '✓ 已提醒' : '失敗';
+  }
+  load();
+</script>
+</body>
+</html>

@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import express, {
   type Express,
   type Request,
@@ -8,12 +9,14 @@ import { middleware, type WebhookRequestBody } from '@line/bot-sdk';
 import { handleEvents, type WebhookDeps } from './webhook/handlers.js';
 import type { PrescriptionService } from './prescription/prescription-service.js';
 import type { JobQueue } from './scheduler/scheduler.js';
+import type { DashboardService } from './dashboard/dashboard-service.js';
 import { validateCreatePrescription } from './api/prescriptions.js';
 
 export interface AppDeps extends WebhookDeps {
   channelSecret: string;
   prescriptions?: PrescriptionService; // #07: pharmacist create-prescription API
   queue?: JobQueue;
+  dashboard?: DashboardService; // #08: pharmacy retention dashboard API
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -22,6 +25,9 @@ export function createApp(deps: AppDeps): Express {
   app.get('/health', (_req: Request, res: Response) => {
     res.json({ ok: true });
   });
+
+  // LIFF surfaces: pharmacist prescription form + retention dashboard.
+  app.use('/liff', express.static(join(process.cwd(), 'liff')));
 
   // line.middleware verifies X-Line-Signature against the raw body, then
   // parses it. It MUST run before any body parser so the raw bytes survive.
@@ -64,6 +70,24 @@ export function createApp(deps: AppDeps): Express {
       express.json(),
       async (req: Request, res: Response) => {
         const ok = await deps.images!.markUnreadable(req.params.id);
+        res.status(ok ? 200 : 404).json({ ok });
+      },
+    );
+  }
+
+  // #08: pharmacy retention dashboard.
+  if (deps.dashboard) {
+    app.get('/api/dashboard/at-risk', async (_req: Request, res: Response) => {
+      res.json({ atRisk: await deps.dashboard!.atRisk(new Date()) });
+    });
+    app.get('/api/dashboard/metrics', async (_req: Request, res: Response) => {
+      res.json(await deps.dashboard!.metrics(new Date()));
+    });
+    app.post(
+      '/api/dashboard/remind/:id',
+      express.json(),
+      async (req: Request, res: Response) => {
+        const ok = await deps.dashboard!.remind(req.params.id);
         res.status(ok ? 200 : 404).json({ ok });
       },
     );

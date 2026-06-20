@@ -8,6 +8,7 @@ export const JOB_REMINDER = 'dose.reminder';
 export const JOB_ESCALATION = 'dose.escalation';
 export const JOB_REFILL = 'prescription.refill';
 export const JOB_END_COURSE = 'prescription.end_course';
+export const JOB_SWEEP = 'dose.sweep_missed'; // daily: mark unconfirmed past doses MISSED
 
 // #05: nudge the patient to refill this many days before the course runs out.
 export const REFILL_LEAD_DAYS = 2;

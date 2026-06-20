@@ -5,6 +5,7 @@ import {
   JOB_ESCALATION,
   JOB_REFILL,
   JOB_END_COURSE,
+  JOB_SWEEP,
 } from './scheduler.js';
 
 export interface PgBossHandle {
@@ -27,6 +28,7 @@ export async function startPgBoss(connectionString: string): Promise<PgBossHandl
   await boss.createQueue(JOB_ESCALATION);
   await boss.createQueue(JOB_REFILL);
   await boss.createQueue(JOB_END_COURSE);
+  await boss.createQueue(JOB_SWEEP);
 
   const queue: JobQueue = {
     async schedule(name: string, payload: unknown, runAt: Date): Promise<void> {

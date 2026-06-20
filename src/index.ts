@@ -8,6 +8,7 @@ import { makeConfirmService } from './dosing/confirm-service.js';
 import { makeConsentService } from './consent/consent-service.js';
 import { makeImageService } from './prescription/image-service.js';
 import { makePrescriptionService } from './prescription/prescription-service.js';
+import { makeDashboardService } from './dashboard/dashboard-service.js';
 import { InMemoryObjectStore } from './storage/object-store.js';
 import { startPgBoss } from './scheduler/pgboss-queue.js';
 import type { Pusher } from './line/push.js';
@@ -74,6 +75,13 @@ async function main(): Promise<void> {
   // refill jobs at creation time. Web schedules; the worker process drains.
   const { queue } = await startPgBoss(cfg.databaseUrl);
   const prescriptions = makePrescriptionService(pool);
+  const dashboard = makeDashboardService({
+    db: pool,
+    pusher,
+    notifyPharmacy: async (text: string) => {
+      console.log('[pharmacy]', text);
+    },
+  });
 
   const app = createApp({
     channelSecret: cfg.channelSecret,
@@ -82,6 +90,7 @@ async function main(): Promise<void> {
     images,
     prescriptions,
     queue,
+    dashboard,
     getDisplayName,
     reply,
   });
