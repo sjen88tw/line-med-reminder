@@ -7,7 +7,10 @@ import { makeMemberService } from './member/member-service.js';
 import { makeConfirmService } from './dosing/confirm-service.js';
 import { makeConsentService } from './consent/consent-service.js';
 import { makeImageService } from './prescription/image-service.js';
+import { makePrescriptionService } from './prescription/prescription-service.js';
 import { InMemoryObjectStore } from './storage/object-store.js';
+import { startPgBoss } from './scheduler/pgboss-queue.js';
+import type { Pusher } from './line/push.js';
 import { createApp } from './server.js';
 
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
@@ -46,6 +49,11 @@ async function main(): Promise<void> {
   const blobApi = new messagingApi.MessagingApiBlobClient({
     channelAccessToken: cfg.channelAccessToken,
   });
+  const pusher: Pusher = {
+    async push(to, messages) {
+      await lineApi.pushMessage({ to, messages });
+    },
+  };
   const consent = makeConsentService(pool);
   const images = makeImageService({
     db: pool,
@@ -59,13 +67,21 @@ async function main(): Promise<void> {
       console.log('[pharmacy]', text);
     },
     reply,
+    pusher,
   });
+
+  // #07: prescription create API needs the queue so each dose gets reminder +
+  // refill jobs at creation time. Web schedules; the worker process drains.
+  const { queue } = await startPgBoss(cfg.databaseUrl);
+  const prescriptions = makePrescriptionService(pool);
 
   const app = createApp({
     channelSecret: cfg.channelSecret,
     members,
     confirms,
     images,
+    prescriptions,
+    queue,
     getDisplayName,
     reply,
   });

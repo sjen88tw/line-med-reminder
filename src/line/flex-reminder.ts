@@ -67,6 +67,14 @@ export function buildReminderFlex(v: ReminderView): messagingApi.FlexMessage {
   };
 }
 
+// #07: pharmacist marked the photo unreadable -> ask the patient to resend.
+export function buildResendMessage(): messagingApi.TextMessage {
+  return {
+    type: 'text',
+    text: '這張處方箋看不太清楚，麻煩再傳一張清楚的照片給我們 🙏',
+  };
+}
+
 // #05 refill nudge. No confirm button — the pharmacy calls/serves the patient.
 export function buildRefillMessage(drugSummary: string): messagingApi.TextMessage {
   return {

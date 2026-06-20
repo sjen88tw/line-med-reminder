@@ -1,6 +1,8 @@
 import type { Queryable } from '../member/member-service.js';
 import type { ObjectStore } from '../storage/object-store.js';
 import type { ConsentService } from '../consent/consent-service.js';
+import type { Pusher } from '../line/push.js';
+import { buildResendMessage } from '../line/flex-reminder.js';
 
 export interface IncomingImage {
   lineUserId: string;
@@ -18,6 +20,7 @@ export interface ImageServiceDeps {
   fetchContent: (messageId: string) => Promise<{ body: Buffer; contentType: string }>;
   notifyPharmacy: (text: string) => Promise<void>;
   reply?: (replyToken: string, text: string) => Promise<void>;
+  pusher?: Pusher; // #07: push "please resend" when an image is marked unreadable
 }
 
 export function makeImageService(deps: ImageServiceDeps) {
@@ -64,6 +67,27 @@ export function makeImageService(deps: ImageServiceDeps) {
       const memberId = await resolveMemberId(lineUserId);
       if (memberId == null) return false;
       await deps.consent.record(memberId);
+      return true;
+    },
+
+    // #07: pharmacist marks an image unreadable -> ask the patient to resend.
+    async markUnreadable(imageId: number | string): Promise<boolean> {
+      const { rows } = await deps.db.query(
+        `UPDATE prescription_image SET status = 'unreadable'
+         WHERE id = $1 AND status = 'pending'
+         RETURNING member_id`,
+        [imageId],
+      );
+      if (!rows.length) return false; // unknown id, or not in 'pending'
+
+      const memberId = rows[0].member_id as number | string;
+      const { rows: m } = await deps.db.query(
+        'SELECT line_user_id FROM member WHERE id = $1',
+        [memberId],
+      );
+      if (m.length && deps.pusher) {
+        await deps.pusher.push(m[0].line_user_id as string, [buildResendMessage()]);
+      }
       return true;
     },
 

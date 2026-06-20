@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>建立處方</title>
+<style>
+  body{font-family:-apple-system,"Microsoft JhengHei",sans-serif;max-width:520px;margin:0 auto;padding:16px;color:#1c2522}
+  h1{font-size:19px}
+  label{display:block;font-size:13px;color:#6b7670;margin:12px 0 4px}
+  input,select{width:100%;padding:9px;font-size:15px;border:1px solid #d7dcd9;border-radius:8px;box-sizing:border-box}
+  .med{border:1px solid #e6eae8;border-radius:10px;padding:10px;margin:10px 0}
+  .row{display:flex;gap:8px}.row>*{flex:1}
+  button{margin-top:14px;width:100%;padding:11px;font-size:15px;font-weight:600;color:#fff;background:#0f9d6e;border:none;border-radius:9px;cursor:pointer}
+  #msg{margin-top:12px;font-size:14px}
+  .err{color:#c0392b}.ok{color:#0f9d6e}
+</style>
+</head>
+<body>
+<h1>建立處方</h1>
+<label>會員 ID(病人)</label>
+<input id="memberId" inputmode="numeric" placeholder="例如 123">
+<div class="row">
+  <div><label>開始日期</label><input id="startDate" type="date"></div>
+  <div><label>天數</label><input id="days" type="number" min="1" max="90" value="7"></div>
+</div>
+<div class="med">
+  <label>藥品名稱</label>
+  <input id="name" placeholder="例如 高血壓藥">
+  <div class="row">
+    <div><label>每次顆數</label><input id="qty" type="number" min="1" value="1"></div>
+    <div><label>頻率</label>
+      <select id="freq"><option>QD</option><option>BID</option><option selected>TID</option><option>QID</option></select>
+    </div>
+    <div><label>餐別</label>
+      <select id="timing"><option>飯前</option><option selected>飯後</option><option>睡前</option></select>
+    </div>
+  </div>
+</div>
+<button id="submit">建立並排程提醒</button>
+<div id="msg"></div>
+<script>
+  document.getElementById('submit').onclick = async () => {
+    const msg = document.getElementById('msg');
+    msg.textContent = '送出中...'; msg.className = '';
+    const body = {
+      memberId: Number(document.getElementById('memberId').value),
+      startDate: document.getElementById('startDate').value,
+      days: Number(document.getElementById('days').value),
+      meds: [{
+        name: document.getElementById('name').value.trim(),
+        qty: Number(document.getElementById('qty').value),
+        freq: document.getElementById('freq').value,
+        timing: document.getElementById('timing').value,
+      }],
+    };
+    try {
+      const res = await fetch('/api/prescriptions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) { msg.className = 'ok'; msg.textContent = '已建立，排了 ' + data.doseCount + ' 筆服藥提醒。'; }
+      else { msg.className = 'err'; msg.textContent = '錯誤：' + (data.errors || []).join('；'); }
+    } catch (e) { msg.className = 'err'; msg.textContent = '送出失敗：' + e; }
+  };
+</script>
+</body>
+</html>
