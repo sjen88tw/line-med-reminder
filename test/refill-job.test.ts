@@ -50,6 +50,16 @@ describe('handleRefillReminder (E1)', () => {
     expect(rows[0].refill_reminded_at).not.toBeNull();
   });
 
+  it('is idempotent: a redelivered job does not push twice', async () => {
+    const { db, prescriptionId } = await setupRx();
+    const h = harness();
+
+    await handleRefillReminder(prescriptionId, { db, pusher: h.pusher, notifyPharmacy: h.notifyPharmacy });
+    await handleRefillReminder(prescriptionId, { db, pusher: h.pusher, notifyPharmacy: h.notifyPharmacy });
+
+    expect(h.pushes.length).toBe(1);
+  });
+
   it('does not nudge an ended prescription', async () => {
     const { db, prescriptionId, lifecycle } = await setupRx();
     await lifecycle.endCourse(prescriptionId);

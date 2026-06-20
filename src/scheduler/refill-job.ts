@@ -15,25 +15,27 @@ export async function handleRefillReminder(
   prescriptionId: number | string,
   deps: RefillDeps,
 ): Promise<void> {
-  const { rows } = await deps.db.query(
-    `SELECT p.id, p.status, p.meds, p.member_id, m.line_user_id
-     FROM prescription p
-     JOIN member m ON m.id = p.member_id
-     WHERE p.id = $1`,
+  // Atomic claim: only an active prescription that hasn't been nudged yet wins.
+  // pg-boss is at-least-once, so a redelivered job must NOT re-push or overwrite.
+  const claimed = await deps.db.query(
+    `UPDATE prescription SET refill_reminded_at = now()
+     WHERE id = $1 AND status = 'active' AND refill_reminded_at IS NULL
+     RETURNING member_id, meds`,
     [prescriptionId],
   );
-  if (!rows.length) return;
-  const p = rows[0];
-  if (p.status !== 'active') return; // ended/stopped -> don't nudge
+  if (!claimed.rows.length) return; // already nudged, ended, or missing
 
-  const summary = parseMeds(p.meds)
+  const memberId = claimed.rows[0].member_id;
+  const summary = parseMeds(claimed.rows[0].meds)
     .map((m) => m.name)
     .join('、');
 
-  await deps.pusher.push(p.line_user_id, [buildRefillMessage(summary)]);
-  await deps.db.query(
-    `UPDATE prescription SET refill_reminded_at = now() WHERE id = $1`,
-    [prescriptionId],
+  const { rows: mrows } = await deps.db.query(
+    'SELECT line_user_id FROM member WHERE id = $1',
+    [memberId],
   );
-  await deps.notifyPharmacy(`病人 #${p.member_id} 待續領召回（${summary}）`);
+  if (!mrows.length) return;
+
+  await deps.pusher.push(mrows[0].line_user_id, [buildRefillMessage(summary)]);
+  await deps.notifyPharmacy(`病人 #${memberId} 待續領召回（${summary}）`);
 }
