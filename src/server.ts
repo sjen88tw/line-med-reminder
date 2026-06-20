@@ -56,11 +56,18 @@ export function createApp(deps: AppDeps): Express {
         res.status(400).json({ errors: v.errors });
         return;
       }
-      const result = await deps.prescriptions!.create({ ...v.value, queue: deps.queue });
-      res.status(201).json({
-        prescriptionId: result.prescriptionId,
-        doseCount: result.doseCount,
-      });
+      try {
+        const result = await deps.prescriptions!.create({ ...v.value, queue: deps.queue });
+        res.status(201).json({
+          prescriptionId: result.prescriptionId,
+          doseCount: result.doseCount,
+        });
+      } catch (err) {
+        // Most failures here are a bad memberId (FK violation) -> client error,
+        // not a crash. Return a clean message instead of leaking a 500 HTML page.
+        console.error('create prescription failed', err);
+        res.status(400).json({ errors: ['建立失敗，請確認會員 ID 是否存在'] });
+      }
     });
   }
 
@@ -69,26 +76,47 @@ export function createApp(deps: AppDeps): Express {
       '/api/images/:id/unreadable',
       express.json(),
       async (req: Request, res: Response) => {
-        const ok = await deps.images!.markUnreadable(req.params.id);
-        res.status(ok ? 200 : 404).json({ ok });
+        try {
+          const ok = await deps.images!.markUnreadable(req.params.id);
+          res.status(ok ? 200 : 404).json({ ok });
+        } catch (err) {
+          console.error('markUnreadable failed', err);
+          res.status(500).json({ error: 'internal' });
+        }
       },
     );
   }
 
   // #08: pharmacy retention dashboard.
   if (deps.dashboard) {
+    const apiError = (res: Response, err: unknown): void => {
+      console.error('dashboard api error', err);
+      if (!res.headersSent) res.status(500).json({ error: 'internal' });
+    };
     app.get('/api/dashboard/at-risk', async (_req: Request, res: Response) => {
-      res.json({ atRisk: await deps.dashboard!.atRisk(new Date()) });
+      try {
+        res.json({ atRisk: await deps.dashboard!.atRisk(new Date()) });
+      } catch (err) {
+        apiError(res, err);
+      }
     });
     app.get('/api/dashboard/metrics', async (_req: Request, res: Response) => {
-      res.json(await deps.dashboard!.metrics(new Date()));
+      try {
+        res.json(await deps.dashboard!.metrics(new Date()));
+      } catch (err) {
+        apiError(res, err);
+      }
     });
     app.post(
       '/api/dashboard/remind/:id',
       express.json(),
       async (req: Request, res: Response) => {
-        const ok = await deps.dashboard!.remind(req.params.id);
-        res.status(ok ? 200 : 404).json({ ok });
+        try {
+          const ok = await deps.dashboard!.remind(req.params.id);
+          res.status(ok ? 200 : 404).json({ ok });
+        } catch (err) {
+          apiError(res, err);
+        }
       },
     );
   }

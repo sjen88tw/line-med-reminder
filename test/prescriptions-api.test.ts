@@ -69,6 +69,18 @@ describe('POST /api/prescriptions', () => {
     expect(rows[0].n).toBe(21);
   });
 
+  // Regression: ISSUE-003 — a non-existent memberId (FK violation) used to throw
+  // an unhandled 500 (HTML body). Found by /qa on 2026-06-19.
+  it('returns a clean 400 (not a 500 crash) for a non-existent memberId', async () => {
+    const { app } = await makeServer();
+    const res = await request(app)
+      .post('/api/prescriptions')
+      .send({ memberId: 999999, startDate: '2026-06-20', days: 7, meds: [goodMed] });
+
+    expect(res.status).toBe(400);
+    expect(Array.isArray(res.body.errors)).toBe(true);
+  });
+
   it('returns 400 with errors for invalid input', async () => {
     const { app } = await makeServer();
     const res = await request(app)
