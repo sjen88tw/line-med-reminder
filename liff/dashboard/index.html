@@ -36,36 +36,55 @@
 </div>
 <script>
   const pct = (x) => Math.round((x || 0) * 100) + '%';
-  async function load() {
-    const [mRes, rRes] = await Promise.all([
-      fetch('/api/dashboard/metrics').then(r => r.json()),
-      fetch('/api/dashboard/at-risk').then(r => r.json()),
-    ]);
-    document.getElementById('metrics').innerHTML = [
-      ['本月續領率', pct(mRes.refillRate)],
-      ['服藥依從率', pct(mRes.adherenceRate)],
-      ['風險名單', mRes.atRiskCount + ' 人'],
-      ['已挽回', mRes.recovered + ' 人'],
-    ].map(([l, v]) => `<div class="metric"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+  // Escape user-controlled text (LINE display names, drug names) before it
+  // touches innerHTML — otherwise a patient's display name is a stored XSS.
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-    const rows = rRes.atRisk || [];
+  async function load() {
     const list = document.getElementById('list');
-    if (!rows.length) { list.innerHTML = '<div class="empty">本月沒有風險病人，做得好 👍</div>'; return; }
-    list.innerHTML = rows.map(r => {
-      const k = r.risk === 'high' ? 'h' : 'm';
-      return `<div class="row">
-        <div class="av ${k}">${(r.memberName || '病').slice(0,1)}</div>
-        <div class="who"><div class="nm">${r.memberName || '病人 #' + r.memberId}</div>
-          <div class="dr">${r.drugSummary} · 依從率 ${pct(r.adherenceRate)}</div></div>
-        <div class="days ${k}">剩 ${r.daysLeft} 天</div>
-        <button onclick="remind(${JSON.stringify(r.prescriptionId)}, this)">LINE 提醒</button>
-      </div>`;
-    }).join('');
+    try {
+      const [mRes, rRes] = await Promise.all([
+        fetch('/api/dashboard/metrics').then((r) => { if (!r.ok) throw new Error('metrics'); return r.json(); }),
+        fetch('/api/dashboard/at-risk').then((r) => { if (!r.ok) throw new Error('at-risk'); return r.json(); }),
+      ]);
+      document.getElementById('metrics').innerHTML = [
+        ['本月續領率', pct(mRes.refillRate)],
+        ['服藥依從率', pct(mRes.adherenceRate)],
+        ['風險名單', mRes.atRiskCount + ' 人'],
+        ['已挽回', mRes.recovered + ' 人'],
+      ].map(([l, v]) => `<div class="metric"><div class="l">${esc(l)}</div><div class="v">${esc(v)}</div></div>`).join('');
+
+      const rows = rRes.atRisk || [];
+      if (!rows.length) { list.innerHTML = '<div class="empty">本月沒有風險病人，做得好 👍</div>'; return; }
+      list.innerHTML = rows.map((r) => {
+        const k = r.risk === 'high' ? 'h' : 'm';
+        const nm = r.memberName || ('病人 #' + r.memberId);
+        return `<div class="row">
+          <div class="av ${k}">${esc(nm.slice(0, 1))}</div>
+          <div class="who"><div class="nm">${esc(nm)}</div>
+            <div class="dr">${esc(r.drugSummary)} · 依從率 ${pct(r.adherenceRate)}</div></div>
+          <div class="days ${k}">剩 ${Number(r.daysLeft)} 天</div>
+          <button data-rx="${esc(r.prescriptionId)}">LINE 提醒</button>
+        </div>`;
+      }).join('');
+      list.querySelectorAll('button[data-rx]').forEach((b) => {
+        b.addEventListener('click', () => remind(b.getAttribute('data-rx'), b));
+      });
+    } catch (e) {
+      list.innerHTML = '<div class="empty">載入失敗，請稍後重整或聯絡技術支援。</div>';
+    }
   }
+
   async function remind(id, btn) {
     btn.disabled = true; btn.textContent = '提醒中...';
-    const res = await fetch('/api/dashboard/remind/' + id, { method: 'POST' });
-    btn.textContent = res.ok ? '✓ 已提醒' : '失敗';
+    try {
+      const res = await fetch('/api/dashboard/remind/' + encodeURIComponent(id), { method: 'POST' });
+      btn.textContent = res.ok ? '✓ 已提醒' : '失敗，再試一次';
+      if (!res.ok) btn.disabled = false;
+    } catch (e) {
+      btn.textContent = '失敗，再試一次'; btn.disabled = false;
+    }
   }
   load();
 </script>
